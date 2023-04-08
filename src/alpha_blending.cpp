@@ -2,8 +2,27 @@
 #include <stdlib.h>
 #include <immintrin.h>
 
+#include <SFML/Graphics.hpp>
+
 #include "../lib/logs/log.h"
 #include "alpha_blending.h"
+
+//================================================================================================================================
+// STATIC GLOBAL DECLARATION
+//================================================================================================================================
+
+static void     reculc_no_simd (alpha_blending *const alpha, const int y, int x);
+static unsigned rgba_color_ctor(const unsigned r,
+                                const unsigned g,
+                                const unsigned b,
+                                const unsigned a);
+//--------------------------------------------------------------------------------------------------------------------------------
+
+static inline int int_min(const int a, const int b);
+
+//================================================================================================================================
+// BODY
+//================================================================================================================================
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // DSL
@@ -50,57 +69,6 @@ bool alpha_blending_ctor(alpha_blending *const alpha, unsigned *const front,
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-bool alpha_blending_ctor(alpha_blending *const alpha, const char *const file_bmp_front,
-                                                      const char *const file_bmp_back)
-{
-    log_verify(alpha          != nullptr, false);
-    log_verify(file_bmp_front != nullptr, false);
-    log_verify(file_bmp_back  != nullptr, false);
-
-    int size_x_front = 0,
-        size_y_front = 0;
-
-    unsigned *front = parse_file_bmp(file_bmp_front, &size_x_front, &size_y_front);
-    if (      front == nullptr) return false;
-
-    int size_x_back = 0,
-        size_y_back = 0;
-
-    unsigned *back = parse_file_bmp(file_bmp_back, &size_x_back, &size_y_back);
-    if (      back == nullptr) return false;
-
-    const int size_x     = int_min(size_x_back, size_x_front);
-    const int size_y     = int_min(size_y_back, size_y_front);
-    const int size_total = size_x * size_y;
-
-    $size_x     = size_x;
-    $size_y     = size_y;
-    $size_total = size_total;
-
-    $front = front;
-    $back  = back;
-    $blend = (unsigned *) log_calloc(size_total, sizeof(unsigned));
-
-    log_verify($blend != nullptr, false);
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-
-static unsigned *parse_file_bmp(const char *const file_bmp, int *const size_x,
-                                                            int *const size_y)
-{
-    log_assert(file_bmp != nullptr);
-
-    log_assert(size_x != nullptr);
-    log_assert(size_y != nullptr);
-
-    return nullptr;
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-
 void alpha_blending_dtor(alpha_blending *const alpha)
 {
     if (alpha == nullptr) return;
@@ -136,7 +104,7 @@ void alpha_blending_reculc(alpha_blending *const alpha)
     for (int y = 0; y < size_y; y += 1) { const int offset = y * size_x;
     for (int x = 0; x < size_x; x += 4)
         {
-            if (x + 4 > size_x) { reculc_no_simd(alpha, y, x); continue; }
+            if (x + 4 > size_x) { reculc_no_simd(alpha, y, x); break; }
 
     //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
     //   =======================================================
@@ -202,7 +170,54 @@ void alpha_blending_reculc(alpha_blending *const alpha)
 
 static void reculc_no_simd(alpha_blending *const alpha, const int y, int x)
 {
+    const int offset = y * $size_x;
 
+    for (; x < $size_x; ++x)
+    {
+        const unsigned fr_red   = $front[offset + x] & (255U << 24);
+        const unsigned bk_red   = $back [offset + x] & (255U << 24);
+
+        const unsigned fr_green = $front[offset + x] & (255U << 16);
+        const unsigned bk_green = $back [offset + x] & (255U << 16);
+
+        const unsigned fr_blue  = $front[offset + x] & (255U <<  8);
+        const unsigned bk_blue  = $back [offset + x] & (255U <<  8);
+
+        const unsigned fr_alpha = $front[offset + x] &  255U;
+        const unsigned bk_alpha = $back [offset + x] &  255U;
+
+        $blend[offset + x] = rgba_color_ctor((fr_red  *fr_alpha + bk_red  *(1 - fr_alpha)) << 8,
+                                             (fr_green*fr_alpha + bk_green*(1 - fr_alpha)) << 8,
+                                             (fr_blue *fr_alpha + bk_blue *(1 - fr_alpha)) << 8,
+                                             (fr_alpha*fr_alpha + bk_alpha*(1 - fr_alpha)) << 8);
+    }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+static unsigned rgba_color_ctor(const unsigned r,
+                                const unsigned g,
+                                const unsigned b,
+                                const unsigned a)
+{
+    return ((r << 24) | (g << 16)) | ((b << 8) | a);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// draw
+//--------------------------------------------------------------------------------------------------------------------------------
+
+void alpha_blending_draw(alpha_blending *const alpha, sf::RenderWindow *const wnd)
+{
+    log_verify(alpha != nullptr, (void) 0);
+    log_verify(wnd   != nullptr, (void) 0);
+
+    sf::Image   img; img.create((unsigned) $size_x, (unsigned) $size_y, (sf::Uint8 *) $blend);
+    sf::Texture tex; tex.loadFromImage(img);
+    sf::Sprite  spr (tex);
+
+    wnd->clear();
+    wnd->draw (spr);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

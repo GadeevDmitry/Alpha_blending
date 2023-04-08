@@ -3,7 +3,6 @@
 #include <immintrin.h>
 
 #include "../lib/logs/log.h"
-
 #include "alpha_blending.h"
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -126,41 +125,82 @@ void alpha_blending_reculc(alpha_blending *const alpha)
     int *const int_front = (int *) $front;
     int *const int_blend = (int *) $blend;
 
-    __m128i maskload_epi32 = _mm_set1_epi32(1 << 31);
+    __m128i mask_load_store    = _mm_set1_epi32(1 << 31);
 
-    for (int y = 0; y < size_y; ++y) { const int offset = y * size_x;
-    for (int x = 0; x < size_x; ++x)
+    __m128i mask_shuf_16to8_hi = _mm_set_epi64x   (0x0F0D'0B09'0705'0301, 0x8080'8080'8080'8080);
+    __m128i mask_shuf_16to8_lo = _mm_set_epi64x   (0x8080'8080'8080'8080, 0x0F0D'0B09'0705'0301);
+
+    __m256i mask_shuf_alpha    = _mm256_set_epi64x(0x8008'8008'8008'8008, 0x8000'8000'8000'8000,
+                                                   0x8008'8008'8008'8008, 0x8000'8000'8000'8000);
+
+    for (int y = 0; y < size_y; y += 1) { const int offset = y * size_x;
+    for (int x = 0; x < size_x; x += 4)
         {
-            if (x + 8 > size_x) { reculc_no_simd(alpha, y, x); continue; }
+            if (x + 4 > size_x) { reculc_no_simd(alpha, y, x); continue; }
 
-        //    0  1  2  3    4  5  6  7    8  9 10 11   12 13 14 15
-        //  =======================================================
-        // | r0 g0 b0 a0 | r1 g1 b1 a1 | r2 g2 b2 a2 | r3 g3 b3 a3 |    8_low
-        // | r4 g4 b4 a4 | r5 g5 b5 a5 | r6 g6 b6 a6 | r7 g7 b7 a7 |    8_high
+    //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   =======================================================
+    //  | r3 g3 b3 a3 | r2 g2 b2 a2 | r1 g1 b1 a1 | r0 g0 b0 a0 | **
 
-            __m128i bk8_low  = _mm_maskload_epi32(int_back  + offset + x, maskload_epi32);
-            __m128i fr8_low  = _mm_maskload_epi32(int_front + offset + x, maskload_epi32);
+            __m128i bk = _mm_maskload_epi32(int_back  + offset + x, mask_load_store);
+            __m128i fr = _mm_maskload_epi32(int_front + offset + x, mask_load_store);
 
-            __m128i bk8_high = _mm_maskload_epi32(int_back  + offset + x + 4, maskload_epi32);
-            __m128i fr8_high = _mm_maskload_epi32(int_front + offset + x + 4, maskload_epi32);
+    //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   ===============================================================================================================
+    //                                                          | r3 g3 b3 a3 | r2 g2 b2 a2 | r1 g1 b1 a1 | r0 g0 b0 a0 | **
+    //  | -- r3 -- g3 | -- b3 -- a3 | -- r2 -- g2 | -- b2 -- a2 | -- r1 -- g1 | -- b1 -- a1 | -- r0 -- g0 | -- b0 -- a0 | **_all
 
-        //    0  1  2  3    4  5  6  7    8  9 10 11   12 13 14 15   16 17 18 19   20 21 22 23   24 25 26 27   28 29 30 31
-        //  ===============================================================================================================
-        // | r0 g0 b0 a0 | r1 g1 b1 a1 | r2 g2 b2 a2 | r3 g3 b3 a3 |                                                          8
-        // | r0 -- g0 -- | b0 -- a0 -- | r1 -- g1 -- | b1 -- a1 -- | r2 -- g2 -- | b2 -- a2 -- | r3 -- g3 -- | b3 -- a3 -- |  16
+            __m256i bk_all = _mm256_cvtepu8_epi16(bk);
+            __m128i bk_lo  = _mm256_extracti128_si256(bk_all, 0);
+            __m128i bk_hi  = _mm256_extracti128_si256(bk_all, 1);
 
-            __m256i bk16_low  = _mm256_cvtepu8_epi16(bk8_low);
-            __m256i fr16_low  = _mm256_cvtepu8_epi16(fr8_low);
+            __m256i fr_all = _mm256_cvtepu8_epi16(fr);
+            __m128i fr_lo  = _mm256_extracti128_si256(fr_all, 0);
+            __m128i fr_hi  = _mm256_extracti128_si256(fr_all, 1);
 
-            __m256i bk16_high = _mm256_cvtepu8_epi16(bk8_high);
-            __m256i fr16_high = _mm256_cvtepu8_epi16(fr8_high);
+    //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   ===============================================================================================================
+    //  | -- a3 -- a3 | -- a3 -- a3 | -- a2 -- a2 | -- a2 -- a2 | -- a1 -- a1 | -- a1 -- a1 | -- a0 -- a0 | -- a0 -- a0 | fr_alpha
+    //  | - ~a3 - ~a3 | - ~a3 - ~a3 | - ~a2 - ~a2 | - ~a2 - ~a2 | - ~a1 - ~a1 | - ~a1 - ~a1 | - ~a0 - ~a0 | - ~a0 - ~a0 | bk_alpha
+
+            __m256i fr_alpha = _mm256_shuffle_epi8(fr_all, mask_shuf_alpha);
+            __m256i bk_alpha = _mm256_sub_epi8(_mm256_set1_epi64x(0x00FF00FF00FF00FF), fr_alpha);
+
+    //     15 14  13 12    11 10   9  8    7  6   5  4     3  2   1  0
+    //   ==============================================================
+    //  |  a3*r3  a3*g3 |  a3*b3  a3*a3 | a2*r2  a2*g2 |  a2*b2  a2*a2 | fr_hi
+    //  | ~a3*r3 ~a3*g3 | ~a3*b3 ~a3*a3 |~a2*r2 ~a2*g2 | ~a2*b2 ~a2*a2 | bk_hi
+
+            bk_lo = _mm_mulhi_epu16(bk_lo, _mm256_extracti128_si256(bk_alpha, 0));
+            bk_hi = _mm_mulhi_epu16(bk_hi, _mm256_extracti128_si256(bk_alpha, 1));
+
+            fr_lo = _mm_mulhi_epu16(fr_lo, _mm256_extracti128_si256(fr_alpha, 0));
+            fr_hi = _mm_mulhi_epu16(fr_hi, _mm256_extracti128_si256(fr_alpha, 1));
+
+    //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   =======================================================
+    //  | R3 G3 B3 A3 | R2 G2 B2 A2 | 00 00 00 00 | 00 00 00 00 | fr_hi
+    //  | 00 00 00 00 | 00 00 00 00 | R1 G1 B1 A1 | R0 G0 B0 A0 | fr_lo
+    //                                              ^^--------------------- Xi = (ai*xi) >> 8
+
+            bk_lo = _mm_shuffle_epi8(bk_lo, mask_shuf_16to8_lo);
+            bk_hi = _mm_shuffle_epi8(bk_hi, mask_shuf_16to8_hi);
+
+            fr_lo = _mm_shuffle_epi8(fr_lo, mask_shuf_16to8_lo);
+            fr_hi = _mm_shuffle_epi8(fr_hi, mask_shuf_16to8_hi);
+
+            __m128i res = _mm_add_epi8(_mm_blend_epi32(bk_hi, bk_lo, 12), _mm_blend_epi32(fr_hi, fr_lo, 12));
+
+    //   =======================================================
+
+            _mm_maskstore_epi32(int_blend + offset + x, mask_load_store, res);
         }
     }
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-static void reculc_no_simd(alpha_blending *const alpha, const int y, const int x)
+static void reculc_no_simd(alpha_blending *const alpha, const int y, int x)
 {
 
 }

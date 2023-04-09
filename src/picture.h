@@ -1,7 +1,7 @@
 #ifndef PICTURE_H
 #define PICTURE_H
 
-#include <SFML/Graphics.hpp>
+//#include <SFML/Graphics.hpp>
 
 //================================================================================================================================
 // V2_VECTOR
@@ -14,6 +14,12 @@ struct v2_vector
 };
 
 bool v2_vector_ctor(v2_vector *const vec, const int x, const int y);
+//--------------------------------------------------------------------------------------------------------------------------------
+v2_vector v2_vector_max(v2_vector a, v2_vector b);
+v2_vector v2_vector_min(v2_vector a, v2_vector b);
+//--------------------------------------------------------------------------------------------------------------------------------
+v2_vector v2_vector_add(const v2_vector a, const v2_vector b);
+v2_vector v2_vector_sub(const v2_vector a, const v2_vector b);
 
 //================================================================================================================================
 // PICTURE

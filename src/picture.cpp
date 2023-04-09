@@ -27,6 +27,10 @@ static inline bool bmp32_extract_data   (const char *filename, const buffer *con
 // V2_VECTOR
 //================================================================================================================================
 
+//--------------------------------------------------------------------------------------------------------------------------------
+// ctor
+//--------------------------------------------------------------------------------------------------------------------------------
+
 bool v2_vector_ctor(v2_vector *const vec, const int x, const int y)
 {
     log_verify(vec != nullptr, false);
@@ -35,6 +39,44 @@ bool v2_vector_ctor(v2_vector *const vec, const int x, const int y)
     vec->y = y;
 
     return true;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// min, max
+//--------------------------------------------------------------------------------------------------------------------------------
+
+v2_vector v2_vector_max(v2_vector a, v2_vector b)
+{
+    v2_vector res = {};
+
+    res.x = (a.x > b.x) ? a.x : b.x;
+    res.y = (a.y > b.y) ? a.y : b.y;
+
+    return res;
+}
+
+v2_vector v2_vector_min(v2_vector a, v2_vector b)
+{
+    v2_vector res = {};
+
+    res.x = (a.x < b.x) ? a.x : b.x;
+    res.y = (a.y < b.y) ? a.y : b.y;
+
+    return res;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// operator
+//--------------------------------------------------------------------------------------------------------------------------------
+
+v2_vector v2_vector_add(const v2_vector a, const v2_vector b)
+{
+    return {a.x + b.x, a.y + b.y};
+}
+
+v2_vector v2_vector_sub(const v2_vector a, const v2_vector b)
+{
+    return {a.x - b.x, a.y - b.y};
 }
 
 //================================================================================================================================
@@ -242,9 +284,6 @@ bool frame_ctor(frame *const segment, picture *const content, const v2_vector of
     log_verify(segment != nullptr, false);
     log_verify(content != nullptr, false);
 
-    log_verify(offset.x >= 0, false);
-    log_verify(offset.y >= 0, false);
-
     $content = content;
     $offset  =  offset;
 
@@ -258,9 +297,6 @@ bool frame_ctor(frame *const segment, const char *bmp32_filename, const v2_vecto
     log_verify(segment        != nullptr, false);
     log_verify(bmp32_filename != nullptr, false);
 
-    log_verify(offset.x >= 0, false);
-    log_verify(offset.y >= 0, false);
-
     $offset = offset;
 
     return picture_ctor(&$content, bmp32_filename);
@@ -271,9 +307,6 @@ bool frame_ctor(frame *const segment, const char *bmp32_filename, const v2_vecto
 bool frame_set_offset(frame *const segment, const v2_vector offset)
 {
     log_verify(segment != nullptr, false);
-
-    log_verify(offset.x >= 0, false);
-    log_verify(offset.y >= 0, false);
 
     $offset = offset;
 

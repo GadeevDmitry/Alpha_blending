@@ -10,7 +10,15 @@
 //================================================================================================================================
 
 #include "picture.h"
+#include "alpha_blending.h"
 
+//--------------------------------------------------------------------------------------------------------------------------------
+// init by frame
+//--------------------------------------------------------------------------------------------------------------------------------
+
+static inline void set_pixels   (      picture *const paint,     const unsigned set_color);
+static inline void frame_implant(      picture *const paint    , const picture *const segment    ,
+                                 const v2_vector      paint_beg, const v2_vector      segment_beg, const v2_vector cover_size);
 //--------------------------------------------------------------------------------------------------------------------------------
 // parse_bmp32
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -83,10 +91,6 @@ v2_vector v2_vector_sub(const v2_vector a, const v2_vector b)
 // PICTURE
 //================================================================================================================================
 
-//--------------------------------------------------------------------------------------------------------------------------------
-// DSL
-//--------------------------------------------------------------------------------------------------------------------------------
-
 #define $pixels         (paint->pixels)
 #define $pixels_size    (paint->pixels_size)
 
@@ -108,14 +112,14 @@ bool picture_ctor(picture *const paint, unsigned *const pixels, const v2_vector 
 
     $size        = size;
     $pixels      = pixels;
-    $pixels_size = $size_x * $size_y;
+    $pixels_size = size.x * size.y;
 
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-bool picture_ctor(picture *const paint, const char *bmp32_filename)
+bool picture_init_by_bmp(picture *const paint, const char *bmp32_filename)
 {
     log_verify(paint          != nullptr, false);
     log_verify(bmp32_filename != nullptr, false);
@@ -128,9 +132,110 @@ bool picture_ctor(picture *const paint, const char *bmp32_filename)
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
+bool picture_init_by_frame(picture *const paint, const frame *const segment, const vector_2v size, const unsigned set_space_color)
+{
+    log_verify(paint   != nullptr, false);
+    log_verify(segment != nullptr, false);
+
+    log_verify(size.x > 0, false);
+    log_verify(size.y > 0, false);
+
+    const unsigned pixels_size = (unsigned) size.x * size.y;
+
+    $size        = size;
+    $pixels_size = pixels_size;
+    $pixels      = (unsigned *) log_calloc($pixels_size, sizeof(unsigned));
+
+    log_verify($pixels != nullptr, false);
+
+    set_pixels(paint, set_space_color);
+
+    v2_vector   paint_beg = v2_vector_max({0, 0}   , segment->offset);
+    v2_vector segment_beg = v2_vector_sub(paint_beg, segment->offset);
+
+    v2_vector cover_size  = v2_vector_min(v2_vector_sub(size, paint_beg), segment->content.size);
+
+    frame_implant(paint, segment->content, paint_beg, segment_beg, cover_size);
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+static inline void set_pixels(picture *const paint, const unsigned set_color)
+{
+    log_assert(paint != nullptr);
+
+    const unsigned pixels_size = $pixels_size;
+
+    for (int i = 0; i < pixels_size; ++i) $pixels[i] = set_color;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+#define $paint_x0       paint_beg.x0
+#define $paint_y0       paint_beg.y0
+
+#define $segment_x0     segment_beg.x0
+#define $segment_y0     segment_beg.y0
+
+#define $paint_width    paint  ->size.x
+#define $segment_width  segment->size.x
+
+static inline void frame_implant(      picture *const paint    , const picture *const segment    ,
+                                 const v2_vector      paint_beg, const v2_vector      segment_beg, const v2_vector cover_size)
+{
+    log_assert(paint   != nullptr);
+    log_assert(segment != nullptr);
+
+    for (int y = 0; y < cover_size.y; ++y) { const int   paint_base = (  $paint_y0 + y) *   $paint_width +   $paint_x0;
+                                             const int segment_base = ($segment_y0 + y) * $segment_width + $segment_x0;
+    for (int x = 0; x < cover_size.x; ++x)
+        {
+            paint->pixels[paint_base + x] = segment->pixels[segment_base + x];
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
 void picture_dtor(picture *const paint)
 {
     if (paint != nullptr) log_free($pixels);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// alpha_blending
+//--------------------------------------------------------------------------------------------------------------------------------
+
+void picture_alpha_blending(picture *const front,
+                            picture *const back ,
+                            picture *const blend)
+{
+    log_verify(front != nullptr, (void) 0);
+    log_verify(back  != nullptr, (void) 0);
+    log_verify(blend != nullptr, (void) 0);
+
+    const int width  = front->size.x;
+    const int height = front->size.y;
+
+    alpha_blending(front->pixels, back->pixels, blend->pixels, width, height);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// draw
+//--------------------------------------------------------------------------------------------------------------------------------
+
+void picture_draw(picture *const paint, sf::RenderWindow *const wnd)
+{
+    log_verify(paint != nullptr, (void) 0);
+    log_verify(wnd   != nullptr, (void) 0);
+
+    sf::Image   img; img.create((unsigned) $size_x, (unsigned) $size_y, (sf::Uint8 *) $pixels);
+    sf::Texture tex; tex.loadFromImage(img);
+    sf::Sprite  spr(tex);
+
+    wnd->draw(spr);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -245,29 +350,9 @@ static inline bool bmp32_extract_data(const char *filename, const buffer *const 
     return true;
 }
 
-//--------------------------------------------------------------------------------------------------------------------------------
-// draw
-//--------------------------------------------------------------------------------------------------------------------------------
-
-void picture_draw(picture *const paint, sf::RenderWindow *const wnd)
-{
-    log_verify(paint != nullptr, (void) 0);
-    log_verify(wnd   != nullptr, (void) 0);
-
-    sf::Image   img; img.create((unsigned) $size_x, (unsigned) $size_y, (sf::Uint8 *) $pixels);
-    sf::Texture tex; tex.loadFromImage(img);
-    sf::Sprite  spr(tex);
-
-    wnd->draw(spr);
-}
-
 //================================================================================================================================
 // FRAME
 //================================================================================================================================
-
-//--------------------------------------------------------------------------------------------------------------------------------
-// DSL
-//--------------------------------------------------------------------------------------------------------------------------------
 
 #define $content        (segment->content)
 
@@ -292,7 +377,7 @@ bool frame_ctor(frame *const segment, picture *const content, const v2_vector of
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-bool frame_ctor(frame *const segment, const char *bmp32_filename, const v2_vector offset /* = {0, 0} */)
+bool frame_init_by_bmp(frame *const segment, const char *bmp32_filename, const v2_vector offset /* = {0, 0} */)
 {
     log_verify(segment        != nullptr, false);
     log_verify(bmp32_filename != nullptr, false);

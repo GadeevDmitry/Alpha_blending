@@ -33,9 +33,10 @@ struct picture
     v2_vector size;
 };
 
-bool picture_ctor(picture *const paint, unsigned *const pixels, const v2_vector size);
-bool picture_ctor(picture *const paint, const char *bmp32_filename);
-void picture_dtor(picture *const paint);
+bool picture_ctor         (picture *const paint, unsigned *const pixels, const v2_vector size);
+bool picture_init_by_bmp  (picture *const paint, const char *bmp32_filename);
+bool picture_init_by_frame(picture *const paint, const frame *const segment, const vector_2v size, const unsigned set_space_color);
+void picture_dtor         (picture *const paint);
 //--------------------------------------------------------------------------------------------------------------------------------
 void picture_draw(picture *const paint, sf::RenderWindow *const wnd);
 
@@ -50,21 +51,11 @@ struct frame
     v2_vector  offset;
 };
 
-bool frame_ctor      (frame *const segment, picture *const content    , const v2_vector offset = {0, 0});
-bool frame_ctor      (frame *const segment, const char *bmp32_filename, const v2_vector offset = {0, 0});
-bool frame_set_offset(frame *const segment,                             const v2_vector offset);
-void frame_dtor      (frame *const segment);
+bool frame_ctor       (frame *const segment, picture *const content    , const v2_vector offset = {0, 0});
+bool frame_init_by_bmp(frame *const segment, const char *bmp32_filename, const v2_vector offset = {0, 0});
+bool frame_set_offset (frame *const segment,                             const v2_vector offset);
+void frame_dtor       (frame *const segment);
 //--------------------------------------------------------------------------------------------------------------------------------
-void frame_draw      (frame *const segment, sf::RenderWindow *const wnd);
-
-/*
-struct piece
-{
-    picture    *main;
-
-    v2_vector   size;
-    v2_vector offset;
-};
-*/
+void frame_draw       (frame *const segment, sf::RenderWindow *const wnd);
 
 #endif //PICTURE_H

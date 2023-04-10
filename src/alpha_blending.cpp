@@ -3,6 +3,9 @@
 #include <string.h>
 #include <immintrin.h>
 
+#define LOG_NDEBUG
+#define LOG_NVERIFY
+
 #include "../lib/logs/log.h"
 #include "../lib/algorithm/algorithm.h"
 
@@ -14,6 +17,14 @@
 // alpha_blending
 //--------------------------------------------------------------------------------------------------------------------------------
 
+static const __m128i mask_load_store    = _mm_set1_epi32(1 << 31);
+
+static const __m128i mask_shuf_16to8_hi = _mm_set_epi64x   ((long long) 0x0F0D'0B09'0705'0301, (long long) 0x8080'8080'8080'8080);
+static const __m128i mask_shuf_16to8_lo = _mm_set_epi64x   ((long long) 0x8080'8080'8080'8080, (long long) 0x0F0D'0B09'0705'0301);
+
+static const __m256i mask_shuf_alpha    = _mm256_set_epi64x((long long) 0x800E'800E'800E'800E, (long long) 0x8006'8006'8006'8006,
+                                                            (long long) 0x800E'800E'800E'800E, (long long) 0x8006'8006'8006'8006);
+//--------------------------------------------------------------------------------------------------------------------------------
 static void no_simd_reculc(const unsigned *const front,
                            const unsigned *const  back,
                                  unsigned *const blend, const int cur_x,
@@ -40,6 +51,10 @@ static unsigned rgba_parse(RGBA pixel);
 // ALPHA_BLENDING
 //--------------------------------------------------------------------------------------------------------------------------------
 
+//--------------------------------------------------------------------------------------------------------------------------------
+// intrin
+//--------------------------------------------------------------------------------------------------------------------------------
+
 void alpha_blending_intrin(const int *const front,
                            const int *const back ,
                                  int *const blend, const int width, const int height)
@@ -50,14 +65,6 @@ void alpha_blending_intrin(const int *const front,
 
     log_assert(width  > 0);
     log_assert(height > 0);
-
-    __m128i mask_load_store    = _mm_set1_epi32(1 << 31);
-
-    __m128i mask_shuf_16to8_hi = _mm_set_epi64x   ((long long) 0x0F0D'0B09'0705'0301, (long long) 0x8080'8080'8080'8080);
-    __m128i mask_shuf_16to8_lo = _mm_set_epi64x   ((long long) 0x8080'8080'8080'8080, (long long) 0x0F0D'0B09'0705'0301);
-
-    __m256i mask_shuf_alpha    = _mm256_set_epi64x((long long) 0x800E'800E'800E'800E, (long long) 0x8006'8006'8006'8006,
-                                                   (long long) 0x800E'800E'800E'800E, (long long) 0x8006'8006'8006'8006);
 
     for (int y = 0; y < height; y += 1) { const int base = y * width;
     for (int x = 0; x <  width; x += 4)
@@ -133,10 +140,12 @@ void alpha_blending_intrin(const int *const front,
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
+// intrin improve
+//--------------------------------------------------------------------------------------------------------------------------------
 
-void alpha_blending_simple(const int *const front,
-                           const int *const back ,
-                                 int *const blend, const int width, const int height)
+void alpha_blending_intrin_improve(const int *const front,
+                                   const int *const back ,
+                                         int *const blend, const int width, const int height)
 {
     log_assert(front != nullptr);
     log_assert(back  != nullptr);
@@ -145,13 +154,86 @@ void alpha_blending_simple(const int *const front,
     log_assert(width  > 0);
     log_assert(height > 0);
 
-    for (int y = 0; y < height; ++y)
-    { 
-        const int base = y * width;
+    log_assert(front != nullptr);
+    log_assert(back  != nullptr);
+    log_assert(blend != nullptr);
 
-        no_simd_reculc((const unsigned *) front + base,
-                       (const unsigned *) back  + base,
-                       (      unsigned *) blend + base, 0, width);
+    log_assert(width  > 0);
+    log_assert(height > 0);
+
+    for (int y = 0; y < height; y += 1) { const int base = y * width;
+    for (int x = 0; x <  width; x += 4)
+        {
+            if (x + 4 > width)
+            {
+                no_simd_reculc((const unsigned *) front + base,
+                               (const unsigned *) back  + base,
+                               (      unsigned *) blend + base, x, width);
+                break;
+            }
+
+            const int ind = base + x;
+
+    //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   =======================================================
+    //  | a3 b3 g3 r3 | a2 b2 g2 r2 | a1 b1 g1 r1 | a0 b0 g0 r0 | **_8
+
+            __m128i bk_8 = _mm_maskload_epi32(back  + ind, mask_load_store);
+            __m128i fr_8 = _mm_maskload_epi32(front + ind, mask_load_store);
+
+    //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   ===============================================================================================================
+    //  | -- a3 -- b3 | -- g3 -- r3 | -- a2 -- b2 | -- g2 -- r2 | -- a1 -- b1 | -- g1 -- r1 | -- a0 -- b0 | -- g0 -- r0 | **_16
+
+            __m256i  bk_16 = _mm256_cvtepu8_epi16(bk_8);
+            __m256i  fr_16 = _mm256_cvtepu8_epi16(fr_8);
+
+    //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   ===============================================================================================================
+    //  | -- a3 -- a3 | -- a3 -- a3 | -- a2 -- a2 | -- a2 -- a2 | -- a1 -- a1 | -- a1 -- a1 | -- a0 -- a0 | -- a0 -- a0 | alpha
+    //  | - da3 - db3 | - dg3 - dr3 | - da2 - db2 | - dg2 - dr2 | - da1 - db1 | - dg1 - dr1 | - da0 - db0 | - dg0 - dr0 | sub_16
+    //                                                                                          ^^^-----------------------dxi = fr_16.xi - bk_16.xi
+
+            __m256i sub_16 = _mm256_sub_epi16   (fr_16, bk_16);
+            __m256i alpha  = _mm256_shuffle_epi8(fr_16, mask_shuf_alpha);
+
+            __m256i mul_16 = _mm256_mullo_epi16(sub_16, alpha);
+            __m128i mul_lo = _mm256_extracti128_si256(mul_16, 0);
+            __m128i mul_hi = _mm256_extracti128_si256(mul_16, 1);
+
+    //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
+    //   =======================================================
+    //  | A3 B3 G3 R3 | A2 B2 G2 R2 | 00 00 00 00 | 00 00 00 00 | fr_hi
+    //  | 00 00 00 00 | 00 00 00 00 | A1 B1 G1 R1 | A0 B0 G0 R0 | fr_lo
+    //                                              ^^--------------------- Xi = (ai * (fr_16.xi - bk_16.xi)) >> 8
+
+            mul_lo = _mm_shuffle_epi8(mul_lo, mask_shuf_16to8_lo);
+            mul_hi = _mm_shuffle_epi8(mul_hi, mask_shuf_16to8_hi);
+
+            __m128i res = _mm_add_epi8(_mm_blend_epi32(mul_lo, mul_hi, 12), bk_8);
+
+    //   =======================================================
+
+            _mm_maskstore_epi32(blend + ind, mask_load_store, res);
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+// simple
+//--------------------------------------------------------------------------------------------------------------------------------
+
+void alpha_blending_simple(const int *const front,
+                           const int *const back ,
+                                 int *const blend, const int width, const int height)
+{
+    for (int y = 0; y < height; ++y)
+    {
+        const int offset = y * width;
+
+        no_simd_reculc((const unsigned *) front + offset,
+                       (const unsigned *) back  + offset,
+                       (      unsigned *) blend + offset, 0, width);
     }
 }
 

@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <SFML/Graphics.hpp>
+#define LOG_NDEBUG
+#define LOG_NVERIFY
 
 #include "../lib/logs/log.h"
 #include "../lib/algorithm/algorithm.h"
@@ -238,7 +239,7 @@ void picture_alpha_blending(const picture *const front,
     const int width  = front->size.x;
     const int height = front->size.y;
 
-    alpha_blending_intrin((int *) front->pixels, (int *) back->pixels, (int *) blend->pixels, width, height);
+    alpha_blending_intrin_improve((int *) front->pixels, (int *) back->pixels, (int *) blend->pixels, width, height);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

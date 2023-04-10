@@ -40,42 +40,6 @@ static unsigned rgba_parse(RGBA pixel);
 // ALPHA_BLENDING
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void __m128i_dump(const char *name, __m128i value)
-{
-    const char *value_ptr = (const char *) &value;
-
-    log_message(HTML_COLOR_MEDIUM_BLUE "%15s: " HTML_COLOR_CANCEL, name);
-    log_message(HTML_COLOR_DARK_ORANGE);
-
-    for (int i = 0; i < 16; ++i) log_message("%5x ", (unsigned char) value_ptr[i]); 
-
-    log_message(HTML_COLOR_CANCEL "\n");
-}
-
-void __m256i_dump(const char *name, __m256i value)
-{
-    const char *value_ptr = (const char *) &value;
-
-    log_message(HTML_COLOR_MEDIUM_BLUE "%15s: " HTML_COLOR_CANCEL, name);
-    log_message(HTML_COLOR_DARK_ORANGE);
-
-    for (int i = 0; i < 31; ++i) log_message("%5x ", (unsigned char) value_ptr[i]);
-
-    log_message(HTML_COLOR_CANCEL "\n");
-}
-
-#define INTRIN_NDUMP
-
-#ifndef INTRIN_NDUMP
-#define __m128i_dump(name, value) __m128i_dump(name, value)
-#define __m256i_dump(name, value) __m256i_dump(name, value)
-#else
-#define __m128i_dump(name, value) ;
-#define __m256i_dump(name, value) ;
-#endif
-
-//--------------------------------------------------------------------------------------------------------------------------------
-
 void alpha_blending_intrin(const int *const front,
                            const int *const back ,
                                  int *const blend, const int width, const int height)
@@ -115,9 +79,6 @@ void alpha_blending_intrin(const int *const front,
             __m128i bk = _mm_maskload_epi32(back  + ind, mask_load_store);
             __m128i fr = _mm_maskload_epi32(front + ind, mask_load_store);
 
-            __m128i_dump("bk", bk);
-            __m128i_dump("fr", fr);
-
     //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
     //   ===============================================================================================================
     //                                                          | a3 b3 g3 r3 | a2 b2 g2 r2 | a1 b1 g1 r1 | a0 b0 g0 r0 | **
@@ -131,12 +92,6 @@ void alpha_blending_intrin(const int *const front,
             __m128i fr_lo  = _mm256_extracti128_si256(fr_all, 0);
             __m128i fr_hi  = _mm256_extracti128_si256(fr_all, 1);
 
-            __m128i_dump("bk_lo", bk_lo);
-            __m128i_dump("bk_hi", bk_hi);
-
-            __m128i_dump("fr_lo", fr_lo);
-            __m128i_dump("fr_hi", fr_hi);
-
     //    31 30 29 28   27 26 25 24   23 22 21 20   19 18 17 16   15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
     //   ===============================================================================================================
     //  | -- a3 -- a3 | -- a3 -- a3 | -- a2 -- a2 | -- a2 -- a2 | -- a1 -- a1 | -- a1 -- a1 | -- a0 -- a0 | -- a0 -- a0 | fr_alpha
@@ -144,9 +99,6 @@ void alpha_blending_intrin(const int *const front,
 
             __m256i fr_alpha = _mm256_shuffle_epi8(fr_all, mask_shuf_alpha);
             __m256i bk_alpha = _mm256_sub_epi8(_mm256_set1_epi64x(0x00FF00FF00FF00FF), fr_alpha);
-
-            __m256i_dump("fr_alpha", fr_alpha);
-            __m256i_dump("bk_alpha", bk_alpha);
 
     //     15 14  13 12    11 10   9  8    7  6   5  4     3  2   1  0
     //   ==============================================================
@@ -158,14 +110,6 @@ void alpha_blending_intrin(const int *const front,
 
             fr_lo = _mm_mullo_epi16(fr_lo, _mm256_extracti128_si256(fr_alpha, 0));
             fr_hi = _mm_mullo_epi16(fr_hi, _mm256_extracti128_si256(fr_alpha, 1));
-
-//            log_message("AFTER MUL\n");
-
-            __m128i_dump("bk_lo", bk_lo);
-            __m128i_dump("bk_hi", bk_hi);
-
-            __m128i_dump("fr_lo", fr_lo);
-            __m128i_dump("fr_hi", fr_hi);
 
     //    15 14 13 12   11 10  9  8    7  6  5  4    3  2  1  0
     //   =======================================================
@@ -179,21 +123,7 @@ void alpha_blending_intrin(const int *const front,
             fr_lo = _mm_shuffle_epi8(fr_lo, mask_shuf_16to8_lo);
             fr_hi = _mm_shuffle_epi8(fr_hi, mask_shuf_16to8_hi);
 
-//            log_message("AFTER SHUFFLE\n");
-
-            __m128i_dump("bk_lo", bk_lo);
-            __m128i_dump("bk_hi", bk_hi);
-
-            __m128i_dump("fr_lo", fr_lo);
-            __m128i_dump("fr_hi", fr_hi);
-
             __m128i res = _mm_add_epi8(_mm_blend_epi32(bk_lo, bk_hi, 12), _mm_blend_epi32(fr_lo, fr_hi, 12));
-
-//            log_message("RESULT\n");
-
-            __m128i_dump("res", res);
-
-//            log_message("===========\n");
 
     //   =======================================================
 

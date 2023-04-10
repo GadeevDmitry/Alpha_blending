@@ -40,9 +40,9 @@ static unsigned rgba_parse(RGBA pixel);
 // ALPHA_BLENDING
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void alpha_blending(const int *const front,
-                    const int *const back ,
-                          int *const blend, const int width, const int height)
+void alpha_blending_intrin(const int *const front,
+                           const int *const back ,
+                                 int *const blend, const int width, const int height)
 {
     log_assert(front != nullptr);
     log_assert(back  != nullptr);
@@ -53,20 +53,20 @@ void alpha_blending(const int *const front,
 
     __m128i mask_load_store    = _mm_set1_epi32(1 << 31);
 
-    __m128i mask_shuf_16to8_hi = _mm_set_epi64x   (0x0F0D'0B09'0705'0301, 0x8080'8080'8080'8080);
-    __m128i mask_shuf_16to8_lo = _mm_set_epi64x   (0x8080'8080'8080'8080, 0x0F0D'0B09'0705'0301);
+    __m128i mask_shuf_16to8_hi = _mm_set_epi64x   ((long long) 0x0F0D'0B09'0705'0301, (long long) 0x8080'8080'8080'8080);
+    __m128i mask_shuf_16to8_lo = _mm_set_epi64x   ((long long) 0x8080'8080'8080'8080, (long long) 0x0F0D'0B09'0705'0301);
 
-    __m256i mask_shuf_alpha    = _mm256_set_epi64x(0x8008'8008'8008'8008, 0x8000'8000'8000'8000,
-                                                   0x8008'8008'8008'8008, 0x8000'8000'8000'8000);
+    __m256i mask_shuf_alpha    = _mm256_set_epi64x((long long) 0x8008'8008'8008'8008, (long long) 0x8000'8000'8000'8000,
+                                                   (long long) 0x8008'8008'8008'8008, (long long) 0x8000'8000'8000'8000);
 
     for (int y = 0; y < height; y += 1) { const int base = y * width;
     for (int x = 0; x <  width; x += 4)
         {
             if (x + 4 > width)
             {
-                no_simd_reculc((unsigned *) front + base,
-                               (unsigned *) back  + base,
-                               (unsigned *) blend + base, x, width);
+                no_simd_reculc((const unsigned *) front + base,
+                               (const unsigned *) back  + base,
+                               (      unsigned *) blend + base, x, width);
                 break;
             }
 
@@ -134,15 +134,38 @@ void alpha_blending(const int *const front,
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-#define $fr_red     (pixel_front.red)
-#define $fr_green   (pixel_front.green)
-#define $fr_blue    (pixel_front.blue)
-#define $fr_alpha   (pixel_front.alpha)
+void alpha_blending_simple(const int *const front,
+                           const int *const back ,
+                                 int *const blend, const int width, const int height)
+{
+    log_assert(front != nullptr);
+    log_assert(back  != nullptr);
+    log_assert(blend != nullptr);
 
-#define $bk_red     (pixel_back.red)
-#define $bk_green   (pixel_back.green)
-#define $bk_blue    (pixel_back.blue)
-#define $bk_alpha   (pixel_back.alpha)
+    log_assert(width  > 0);
+    log_assert(height > 0);
+
+    for (int y = 0; y < height; ++y) { const int base = y * width;
+    for (int x = 0; x <  width; ++x)
+        {
+            no_simd_reculc((const unsigned *) front + base,
+                           (const unsigned *) back  + base,
+                           (      unsigned *) blend + base, x, width);
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+#define $fr_red     (unsigned) (pixel_front.red)
+#define $fr_green   (unsigned) (pixel_front.green)
+#define $fr_blue    (unsigned) (pixel_front.blue)
+#define $fr_alpha   (unsigned) (pixel_front.alpha)
+
+#define $bk_red     (unsigned) (pixel_back.red)
+#define $bk_green   (unsigned) (pixel_back.green)
+#define $bk_blue    (unsigned) (pixel_back.blue)
+#define $bk_alpha   (unsigned) (pixel_back.alpha)
 
 static void no_simd_reculc(const unsigned *const front,
                            const unsigned *const  back,
@@ -162,10 +185,10 @@ static void no_simd_reculc(const unsigned *const front,
         RGBA pixel_front = rgba_ctor(front[x]);
         RGBA pixel_back  = rgba_ctor(back [x]);
 
-        RGBA pixel_blend = {$fr_red   * $fr_alpha + $bk_red   * (0xFF - $fr_alpha),
-                            $fr_green * $fr_alpha + $bk_green * (0xFF - $fr_alpha),
-                            $fr_blue  * $fr_alpha + $bk_blue  * (0xFF - $fr_alpha),
-                            $fr_alpha * $fr_alpha + $bk_alpha * (0xFF - $fr_alpha)};
+        RGBA pixel_blend = {(unsigned char) (($fr_red   * $fr_alpha + $bk_red   * (0xFF - $fr_alpha)) >> 8),
+                            (unsigned char) (($fr_green * $fr_alpha + $bk_green * (0xFF - $fr_alpha)) >> 8),
+                            (unsigned char) (($fr_blue  * $fr_alpha + $bk_blue  * (0xFF - $fr_alpha)) >> 8),
+                            (unsigned char) (($fr_alpha * $fr_alpha + $bk_alpha * (0xFF - $fr_alpha)) >> 8)};
 
         blend[x] = rgba_parse(pixel_blend);
     }
@@ -186,15 +209,20 @@ static RGBA rgba_ctor(const unsigned val)
 {
     RGBA pixel = {};
 
-    $red   = (val >> 24) & 0xFF;
-    $green = (val >> 16) & 0xFF;
-    $blue  = (val >>  8) & 0xFF;
-    $alpha = (val >>  0) & 0xFF;
+    $red   = (unsigned char) ((val >> 24U) & 0xFF);
+    $green = (unsigned char) ((val >> 16U) & 0xFF);
+    $blue  = (unsigned char) ((val >>  8U) & 0xFF);
+    $alpha = (unsigned char) ((val >>  0U) & 0xFF);
 
     return pixel;
 }
 
 static unsigned rgba_parse(RGBA pixel)
 {
-    return (($red << 24U) | ($green << 16U)) | (($blue << 8U) | (unsigned) $alpha);
+    unsigned red   = (unsigned) $red;
+    unsigned green = (unsigned) $green;
+    unsigned blue  = (unsigned) $blue;
+    unsigned alpha = (unsigned) $alpha;
+
+    return ((red << 24U) | (green << 16U)) | ((blue << 8U) | alpha);
 }

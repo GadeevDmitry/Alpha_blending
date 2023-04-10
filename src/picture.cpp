@@ -112,7 +112,25 @@ bool picture_ctor(picture *const paint, unsigned *const pixels, const v2_vector 
 
     $size        = size;
     $pixels      = pixels;
-    $pixels_size = size.x * size.y;
+    $pixels_size = (unsigned) (size.x * size.y);
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+bool picture_ctor(picture *const paint, const v2_vector size)
+{
+    log_verify(paint != nullptr, false);
+
+    log_verify(size.x > 0, false);
+    log_verify(size.y > 0, false);
+
+    $size        = size;
+    $pixels_size = (unsigned) (size.x * size.y);
+    $pixels      = (unsigned *) log_calloc($pixels_size, sizeof(unsigned));
+
+    log_verify($pixels != nullptr, false);
 
     return true;
 }
@@ -125,14 +143,14 @@ bool picture_init_by_bmp(picture *const paint, const char *bmp32_filename)
     log_verify(bmp32_filename != nullptr, false);
 
     $pixels      = parse_bmp32(bmp32_filename, &$size);
-    $pixels_size = $size_x * $size_y;
+    $pixels_size = (unsigned) ($size_x * $size_y);
 
     return $pixels != nullptr;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-bool picture_init_by_frame(picture *const paint, const frame *const segment, const vector_2v size, const unsigned set_space_color)
+bool picture_init_by_frame(picture *const paint, const frame *const segment, const v2_vector size, const unsigned set_space_color)
 {
     log_verify(paint   != nullptr, false);
     log_verify(segment != nullptr, false);
@@ -140,7 +158,7 @@ bool picture_init_by_frame(picture *const paint, const frame *const segment, con
     log_verify(size.x > 0, false);
     log_verify(size.y > 0, false);
 
-    const unsigned pixels_size = (unsigned) size.x * size.y;
+    const unsigned pixels_size = (unsigned) (size.x * size.y);
 
     $size        = size;
     $pixels_size = pixels_size;
@@ -155,7 +173,7 @@ bool picture_init_by_frame(picture *const paint, const frame *const segment, con
 
     v2_vector cover_size  = v2_vector_min(v2_vector_sub(size, paint_beg), segment->content.size);
 
-    frame_implant(paint, segment->content, paint_beg, segment_beg, cover_size);
+    frame_implant(paint, &(segment->content), paint_beg, segment_beg, cover_size);
 
     return true;
 }
@@ -168,16 +186,16 @@ static inline void set_pixels(picture *const paint, const unsigned set_color)
 
     const unsigned pixels_size = $pixels_size;
 
-    for (int i = 0; i < pixels_size; ++i) $pixels[i] = set_color;
+    for (unsigned i = 0; i < pixels_size; ++i) $pixels[i] = set_color;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-#define $paint_x0       paint_beg.x0
-#define $paint_y0       paint_beg.y0
+#define $paint_x0       paint_beg.x
+#define $paint_y0       paint_beg.y
 
-#define $segment_x0     segment_beg.x0
-#define $segment_y0     segment_beg.y0
+#define $segment_x0     segment_beg.x
+#define $segment_y0     segment_beg.y
 
 #define $paint_width    paint  ->size.x
 #define $segment_width  segment->size.x
@@ -208,9 +226,9 @@ void picture_dtor(picture *const paint)
 // alpha_blending
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void picture_alpha_blending(picture *const front,
-                            picture *const back ,
-                            picture *const blend)
+void picture_alpha_blending(const picture *const front,
+                            const picture *const back ,
+                                  picture *const blend)
 {
     log_verify(front != nullptr, (void) 0);
     log_verify(back  != nullptr, (void) 0);
@@ -219,23 +237,7 @@ void picture_alpha_blending(picture *const front,
     const int width  = front->size.x;
     const int height = front->size.y;
 
-    alpha_blending(front->pixels, back->pixels, blend->pixels, width, height);
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-// draw
-//--------------------------------------------------------------------------------------------------------------------------------
-
-void picture_draw(picture *const paint, sf::RenderWindow *const wnd)
-{
-    log_verify(paint != nullptr, (void) 0);
-    log_verify(wnd   != nullptr, (void) 0);
-
-    sf::Image   img; img.create((unsigned) $size_x, (unsigned) $size_y, (sf::Uint8 *) $pixels);
-    sf::Texture tex; tex.loadFromImage(img);
-    sf::Sprite  spr(tex);
-
-    wnd->draw(spr);
+    alpha_blending_simple((int *) front->pixels, (int *) back->pixels, (int *) blend->pixels, width, height);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -260,7 +262,7 @@ static unsigned *parse_bmp32(const char *filename, v2_vector *const size)
                                                             &biHeight,
                                                             &bfOffBits)) { buffer_dtor(&bmp_file_content); return nullptr; }
 
-    unsigned  data_size = (unsigned  ) biWidth * biHeight;
+    unsigned  data_size = (unsigned  ) (biWidth * biHeight);
     unsigned *data      = (unsigned *) log_calloc(data_size, sizeof(unsigned));
 
     if (data == nullptr)
@@ -273,7 +275,7 @@ static unsigned *parse_bmp32(const char *filename, v2_vector *const size)
     }
 
     v2_vector_ctor(size, biWidth, biHeight);
-    memcpy(data, bmp_file_content.buff_beg + bfOffBits, data_size);
+    memcpy(data, bmp_file_content.buff_beg + bfOffBits, sizeof(unsigned) * data_size);
 
     buffer_dtor(&bmp_file_content);
 
@@ -303,8 +305,8 @@ static inline bool bmp32_check_signature(const char *filename, buffer *const fil
     log_assert(filename     != nullptr);
     log_assert(file_content != nullptr);
 
-    const int   size = file_content->buff_size;
-    const char *data = file_content->buff_beg ;
+    const int   size = (int) file_content->buff_size;
+    const char *data =       file_content->buff_beg ;
 
     if (size < 54 || data[0] != 'B' || data[1] != 'M')
     {
@@ -332,15 +334,20 @@ static inline bool bmp32_extract_data(const char *filename, const buffer *const 
     log_assert(filename         != nullptr);
     log_assert(bmp_file_content != nullptr);
 
-    const int   size = bmp_file_content->buff_size;
-    const char *data = bmp_file_content->buff_beg ;
+    const char *data = bmp_file_content->buff_beg;
 
-    const int biWidth   = *(int *) (data + 18);
-    const int biHeight  = *(int *) (data + 22);
-    const int bfOffBits = *(int *) (data + 10);
+    int biWidth   = 0;
+    int biHeight  = 0;
+    int bfOffBits = 0;
 
-    if (biWidth   <= 0) { log_error("biWidth   field of .bmp file \"%s\" is invalid\n", filename); return false; }
-    if (biHeight  <= 0) { log_error("biHeight  field of .bmp file \"%s\" is invalid\n", filename); return false; }
+    memcpy(&biWidth  , data + 18, sizeof(int));
+    memcpy(&biHeight , data + 22, sizeof(int));
+    memcpy(&bfOffBits, data + 10, sizeof(int));
+
+    biWidth   = abs(biWidth);
+    biHeight  = abs(biHeight);
+    bfOffBits = abs(bfOffBits);
+
     if (bfOffBits < 54) { log_error("bfOffBits field of .bmp file \"%s\" is invalid\n", filename); return false; }
 
     *_biWidth   = biWidth;
@@ -369,8 +376,8 @@ bool frame_ctor(frame *const segment, picture *const content, const v2_vector of
     log_verify(segment != nullptr, false);
     log_verify(content != nullptr, false);
 
-    $content = content;
-    $offset  =  offset;
+    $content = *content;
+    $offset  =   offset;
 
     return true;
 }
@@ -384,7 +391,7 @@ bool frame_init_by_bmp(frame *const segment, const char *bmp32_filename, const v
 
     $offset = offset;
 
-    return picture_ctor(&$content, bmp32_filename);
+    return picture_init_by_bmp(&$content, bmp32_filename);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -402,17 +409,5 @@ bool frame_set_offset(frame *const segment, const v2_vector offset)
 
 void frame_dtor(frame *const segment)
 {
-    if (segment != nullptr) picture_dtor($content);
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-// draw
-//--------------------------------------------------------------------------------------------------------------------------------
-
-void frame_draw(frame *const segment, sf::RenderWindow *const wnd)
-{
-    log_verify(segment != nullptr, (void) 0);
-    log_verify(wnd     != nullptr, (void) 0);
-
-    picture_draw($content, wnd);
+    if (segment != nullptr) picture_dtor(&$content);
 }

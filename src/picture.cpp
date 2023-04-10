@@ -30,7 +30,6 @@ static inline bool bmp32_check_signature(const char *filename,       buffer *con
 static inline bool bmp32_extract_data   (const char *filename, const buffer *const bmp_file_content, int *const _biWidth,
                                                                                                      int *const _biHeight,
                                                                                                      int *const _bfOffBits);
-static inline void bmp32_reculc_pixels  (unsigned *const pixels, const unsigned pixels_size);
 
 //================================================================================================================================
 // V2_VECTOR
@@ -277,7 +276,6 @@ static unsigned *parse_bmp32(const char *filename, v2_vector *const size)
 
     v2_vector_ctor(size, biWidth, biHeight);
     memcpy(data, bmp_file_content.buff_beg + bfOffBits, sizeof(unsigned) * data_size);
-    bmp32_reculc_pixels(data, data_size);
 
     buffer_dtor(&bmp_file_content);
 
@@ -357,18 +355,6 @@ static inline bool bmp32_extract_data(const char *filename, const buffer *const 
     *_bfOffBits = bfOffBits;
 
     return true;
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-
-static inline void bmp32_reculc_pixels(unsigned *const pixels, const unsigned pixels_size)
-{
-    log_assert(pixels != nullptr);
-
-    for (unsigned i = 0; i < pixels_size; ++i)
-    {
-        if ((pixels[i] & (0xFFU << 24U)) == 0 /* прозрачный */) pixels[i] = 0U;
-    }
 }
 
 //================================================================================================================================

@@ -12,14 +12,23 @@ PICTURE     = picture
 PICTURE_H   = $(PICTURE).h
 PICTURE_CPP = $(PICTURE).cpp
 
+TIME        = timer
+TIME_H      = $(TIME).h
+TIME_CPP    = $(TIME).cpp
+
 SET_H		= settings.h
 #---------------------------------------------------------------------------
 SOURCE = $(ALPHA_CPP) $(PICTURE_CPP)
 HEADER = $(ALPHA_H)   $(PICTURE_H)   $(SET_H)
 LIB	   = $(LOG_O)	  $(ALG_O)
 
+all: blending timer
+
 blending: main.cpp $(SOURCE) $(LIB) $(HEADER)
-	g++ main.cpp $(SOURCE) $(LIB) $(CFLAGS) $(SFML) -o $@
+	g++   main.cpp $(SOURCE) $(LIB) $(CFLAGS) $(SFML) -o $@
+
+timer:  $(TIME_CPP) $(TIME_H) $(ALPHA_CPP) $(ALPHA_H) $(LIB) $(SET_H)
+	g++ $(TIME_CPP) $(CFLAGS) $(ALPHA_CPP)            $(LIB) -o $@
 
 #---------------------------------------------------------------------------
 

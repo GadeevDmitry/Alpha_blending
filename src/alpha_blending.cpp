@@ -25,10 +25,10 @@ static void no_simd_reculc(const unsigned *const front,
 
 struct RGBA
 {
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
     unsigned char alpha;
+    unsigned char blue;
+    unsigned char green;
+    unsigned char red;
 };
 
 static RGBA     rgba_ctor (const unsigned val);
@@ -185,10 +185,10 @@ static void no_simd_reculc(const unsigned *const front,
         RGBA pixel_front = rgba_ctor(front[x]);
         RGBA pixel_back  = rgba_ctor(back [x]);
 
-        RGBA pixel_blend = {(unsigned char) (($fr_red   * $fr_alpha + $bk_red   * (0xFF - $fr_alpha)) >> 8),
+        RGBA pixel_blend = {(unsigned char) (($fr_alpha * $fr_alpha + $bk_alpha * (0xFF - $fr_alpha)) >> 8),
+                            (unsigned char) (($fr_red   * $fr_alpha + $bk_red   * (0xFF - $fr_alpha)) >> 8),
                             (unsigned char) (($fr_green * $fr_alpha + $bk_green * (0xFF - $fr_alpha)) >> 8),
-                            (unsigned char) (($fr_blue  * $fr_alpha + $bk_blue  * (0xFF - $fr_alpha)) >> 8),
-                            (unsigned char) (($fr_alpha * $fr_alpha + $bk_alpha * (0xFF - $fr_alpha)) >> 8)};
+                            (unsigned char) (($fr_blue  * $fr_alpha + $bk_blue  * (0xFF - $fr_alpha)) >> 8)};
 
         blend[x] = rgba_parse(pixel_blend);
     }
@@ -209,20 +209,20 @@ static RGBA rgba_ctor(const unsigned val)
 {
     RGBA pixel = {};
 
-    $red   = (unsigned char) ((val >> 24U) & 0xFF);
-    $green = (unsigned char) ((val >> 16U) & 0xFF);
-    $blue  = (unsigned char) ((val >>  8U) & 0xFF);
-    $alpha = (unsigned char) ((val >>  0U) & 0xFF);
+    $alpha = (unsigned char) ((val >> 24U) & 0xFF);
+    $blue  = (unsigned char) ((val >> 16U) & 0xFF);
+    $green = (unsigned char) ((val >>  8U) & 0xFF);
+    $red   = (unsigned char) ((val >>  0U) & 0xFF);
 
     return pixel;
 }
 
 static unsigned rgba_parse(RGBA pixel)
 {
-    unsigned red   = (unsigned) $red;
-    unsigned green = (unsigned) $green;
-    unsigned blue  = (unsigned) $blue;
     unsigned alpha = (unsigned) $alpha;
+    unsigned blue  = (unsigned) $blue;
+    unsigned green = (unsigned) $green;
+    unsigned red   = (unsigned) $red;
 
-    return ((red << 24U) | (green << 16U)) | ((blue << 8U) | alpha);
+    return ((alpha << 24U) | (blue << 16U)) | ((green << 8U) | red);
 }

@@ -52,7 +52,11 @@ $$X_{blend} = X_{fore} * A_{fore} + X_{back} * (1 - A_{fore})$$
 
 `intrin` и `improved` версии обрабатывают 4 пикселя за инструкцию. `improved` немного быстрее, так как использует одну операцию умножения вместо двух в `intrin` версии.
 
+Improved:
 ![improved screen](godbolt_screen/improved.png "improved")
+
+Intrin:
+
 ![intrin   screen](godbolt_screen/intrin.png   "intrin")
 
 `simple`, помимо пересчета каждого пикселя по формуле выше, в добавок делает битовые сдвиги для извлечения и загрузки компонент в 32-битное целое и много операций обращения к памяти. Поэтому ускорение больше, чем в 4 раза.

@@ -4,7 +4,7 @@
 
 Alpha blending - это процесс объединения изображения (foreground) с фоном (background) для создания видимости частичной или полной прозрачности. Результатом объединения пикселя изображения и фона с компонентами $(RGBA)_{fore}$ и $(RGBA)_{back}$ соответственно является пиксель с компонентами $(RGBA)_{blend}$, где каждый компонент $X_{blend}$ пересчитывается по формуле:
 
-$$ X_{blend}=X_{fore}*A_{fore}+X_{back}*(1-A_{fore}) $$
+$$ X_{blend} = X_{fore} * A_{fore} + X_{back} * (1 - A_{fore}) $$
 
 Пример alpha-blending-а:
 
@@ -40,9 +40,9 @@ $$ X_{blend}=X_{fore}*A_{fore}+X_{back}*(1-A_{fore}) $$
 
 `simple`   - попикселья обработка
 
-`intrin`   - векторизация, вычисляющая по формуле $X_{blend}=X_{fore}*A_{fore}+X_{back}*(1-A_{fore})$
+`intrin`   - векторизация, вычисляющая по формуле $X_{blend} = X_{fore} * A_{fore} + X_{back} * (1 - A_{fore})$
 
-`improved` - векторизация, вычисляющая по формуле $X_{blend}=(X_{fore}-X_{back})*A_{fore}+X_{back}$
+`improved` - векторизация, вычисляющая по формуле $X_{blend} = (X_{fore} - X_{back}) * A_{fore} + X_{back}$
 
 ## Вывод
 

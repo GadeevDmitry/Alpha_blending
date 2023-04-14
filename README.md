@@ -6,7 +6,7 @@ Alpha blending - это процесс объединения изображен
 
 $$ X_{blend} = X_{fore} * A_{fore} + X_{back} * (1 - A_{fore}) $$
 
-Пример alpha-blending-а:
+Пример alpha-blending:
 
 ![Alpha blending](data/blend.bmp)
 

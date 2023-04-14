@@ -4,7 +4,7 @@
 
 Alpha blending - это процесс объединения изображения (foreground) с фоном (background) для создания видимости частичной или полной прозрачности. Результатом объединения пикселя изображения и фона с компонентами $(RGBA)_{fore}$ и $(RGBA)_{back}$ соответственно является пиксель с компонентами $(RGBA)_{blend}$, где каждый компонент $X_{blend}$ пересчитывается по формуле:
 
-$$X_{blend}=X_{fore}*A_{fore}+X_{back}*(1-A_{fore})$$
+$$ X_{blend}=X_{fore}*A_{fore}+X_{back}*(1-A_{fore}) $$
 
 Пример alpha-blending-а:
 
@@ -58,5 +58,6 @@ make timer
 ./time                      // run all versions
 ./time --intrin --improved  // run only simd versions
 ./time --help               // show manual
+```
 
 Настройки (кол-во тестов для усреднения, размеры изображений и фона и т.д.) в src/settings.h

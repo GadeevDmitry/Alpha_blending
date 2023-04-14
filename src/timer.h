@@ -20,7 +20,7 @@ const char *MODE_NAME[] =
 {
     "--all"         ,
     "--intrin"      ,
-    "--se"   ,
+    "--improved"    ,
     "--simple"      ,
     "--help"        ,
 };

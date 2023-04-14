@@ -26,6 +26,7 @@ int main(const int argc, const char *argv[])
                         "--all (or none): to run all alpha blending methods\n"
                         "--intrin       : to run \"intrin\"       method \n"
                         "--improved     : to run \"improved\"     method \n"
+                        "--simple       : to run \"simple\"       method \n"
                         "--help (single): to get manual\n"
                         "\n"
                         "see \"alpha_blending.cpp\" about methods\n\n");
